@@ -2,10 +2,12 @@ package utils
 
 import (
 	"context"
+	"github.com/PullRequestInc/go-gpt3"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
+	"os"
 )
 
 func ImageToSticker(ctx context.Context, v *events.Message, client *whatsmeow.Client) (whatsmeow.SendResponse, error) {
@@ -19,7 +21,7 @@ func ImageToSticker(ctx context.Context, v *events.Message, client *whatsmeow.Cl
 		return whatsmeow.SendResponse{}, err
 	}
 
-	response, err := client.SendMessage(context.Background(), v.Info.Sender, "", &waProto.Message{
+	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
 		StickerMessage: &waProto.StickerMessage{
 			Mimetype:      proto.String("image/webp"),
 			Url:           &resp.URL,
@@ -48,6 +50,31 @@ func StickerToImage(ctx context.Context, v *events.Message, client *whatsmeow.Cl
 			FileSha256:    v.Message.StickerMessage.FileSha256,
 			FileLength:    v.Message.StickerMessage.FileLength,
 		},
+	})
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	return response, nil
+}
+
+func ConversationWithOpenAI(ctx context.Context, v *events.Message, client *whatsmeow.Client, prompt string) (whatsmeow.SendResponse, error) {
+	conversation := "Cannot find your conversation"
+	if prompt != "undefined" {
+		apiKey := os.Getenv("API_KEY")
+		clientAI := gpt3.NewClient(apiKey)
+		resp, err := clientAI.SearchWithEngine(ctx, gpt3.AdaEngine, gpt3.SearchRequest{
+			Documents: []string{prompt},
+			Query:     prompt,
+		})
+		if err != nil {
+			return whatsmeow.SendResponse{}, err
+		}
+		conversation = resp.Object
+	}
+
+	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
+		Conversation: proto.String(conversation),
 	})
 	if err != nil {
 		return whatsmeow.SendResponse{}, err
