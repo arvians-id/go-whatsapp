@@ -63,14 +63,16 @@ func ConversationWithOpenAI(ctx context.Context, v *events.Message, client *what
 	if prompt != "undefined" {
 		apiKey := os.Getenv("API_KEY")
 		clientAI := gpt3.NewClient(apiKey)
-		resp, err := clientAI.SearchWithEngine(ctx, gpt3.AdaEngine, gpt3.SearchRequest{
-			Documents: []string{prompt},
-			Query:     prompt,
+		resp, err := clientAI.Completion(ctx, gpt3.CompletionRequest{
+			Prompt:    []string{prompt},
+			MaxTokens: gpt3.IntPtr(30),
+			Stop:      []string{"."},
+			Echo:      true,
 		})
 		if err != nil {
 			return whatsmeow.SendResponse{}, err
 		}
-		conversation = resp.Object
+		conversation = resp.Choices[0].Text
 	}
 
 	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
