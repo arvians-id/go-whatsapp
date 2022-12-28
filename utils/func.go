@@ -2,44 +2,101 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"mime"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+
 	"github.com/PullRequestInc/go-gpt3"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
-	"os"
 )
 
+// Convert Image to WebP
+// Using https://developers.google.com/speed/webp/docs/cwebp
+func convertImage(mediaPath string, convertedPath string) error {
+	cmd := *exec.Command("cwebp", mediaPath, "-resize", "0", "600", "-o", convertedPath)
+	err := cmd.Run()
+
+	return err
+}
+
 func ImageToSticker(ctx context.Context, v *events.Message, client *whatsmeow.Client) (whatsmeow.SendResponse, error) {
-	download, err := client.Download(v.Message.GetImageMessage())
+	newpath := filepath.Join(".", "images/raw")
+	err := os.MkdirAll(newpath, os.ModePerm)
 	if err != nil {
 		return whatsmeow.SendResponse{}, err
 	}
 
-	resp, err := client.Upload(ctx, download, whatsmeow.MediaImage)
+	newpath = filepath.Join(".", "images/converted")
+	err = os.MkdirAll(newpath, os.ModePerm)
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	image := v.Message.GetImageMessage()
+	data, err := client.Download(image)
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	exts, _ := mime.ExtensionsByType(image.GetMimetype())
+	rawPath := fmt.Sprintf("images/raw/%s%s", v.Info.ID, exts[0])
+	convertedPath := fmt.Sprintf("images/converted/%s%s", v.Info.ID, ".webp")
+	err = os.WriteFile(rawPath, data, 0600)
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	err = convertImage(rawPath, convertedPath)
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	// metadata.GenerateMetadata(convertedPath)
+
+	dataBytes, err := os.ReadFile(convertedPath)
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	uploaded, err := client.Upload(ctx, dataBytes, whatsmeow.MediaImage)
 	if err != nil {
 		return whatsmeow.SendResponse{}, err
 	}
 
 	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
 		StickerMessage: &waProto.StickerMessage{
-			Mimetype:      proto.String("image/webp"),
-			Url:           &resp.URL,
-			DirectPath:    &resp.DirectPath,
-			MediaKey:      resp.MediaKey,
-			FileEncSha256: resp.FileEncSHA256,
-			FileSha256:    resp.FileSHA256,
-			FileLength:    &resp.FileLength,
+			Url:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String(http.DetectContentType(dataBytes)),
+			FileEncSha256: uploaded.FileEncSHA256,
+			FileSha256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uint64(len(dataBytes))),
 		},
 	})
 	if err != nil {
 		return whatsmeow.SendResponse{}, err
 	}
 
+	os.Remove(convertedPath)
+	os.Remove(rawPath)
+
 	return response, nil
 }
 
 func StickerToImage(ctx context.Context, v *events.Message, client *whatsmeow.Client) (whatsmeow.SendResponse, error) {
+	log.Println("To Image", v.Message.StickerMessage)
 	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
 		ImageMessage: &waProto.ImageMessage{
 			Mimetype:      proto.String("image/png"),

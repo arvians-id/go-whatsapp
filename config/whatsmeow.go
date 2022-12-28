@@ -3,12 +3,16 @@ package config
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"strings"
+
 	"github.com/arvians-id/go-whatsapp/utils"
+	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
-	"strings"
 )
 
 var client *whatsmeow.Client
@@ -26,24 +30,19 @@ func eventHandler(evt interface{}) {
 					return
 				}
 			}
-			if v.Message.GetImageMessage() != nil && v.Message.ImageMessage.GetCaption() == "#sticker" {
+			if v.Message.GetImageMessage() != nil {
 				_, err := utils.ImageToSticker(ctx, v, client)
 				if err != nil {
 					fmt.Println("err", err)
 					return
 				}
+				log.Println("=============================== Sticker Sent ========================================")
 			}
 			if v.Message.GetConversation() != "" {
 				conversation := v.Message.GetConversation()
 				arrayConversation := strings.Split(conversation, " ")
-				if arrayConversation[0] == "#ai" {
+				if arrayConversation[0] == "#comp" {
 					_, err := utils.ConversationWithOpenAI(ctx, v, client, conversation)
-					if err != nil {
-						fmt.Println("err", err)
-						return
-					}
-				} else {
-					_, err := utils.ConversationWithOpenAI(ctx, v, client, "undefined")
 					if err != nil {
 						fmt.Println("err", err)
 						return
@@ -80,6 +79,7 @@ func NewInitializedWhatsMeow() (*whatsmeow.Client, error) {
 
 		for evt := range qrChan {
 			if evt.Event == "code" {
+				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 				fmt.Println("QR code:", evt.Code)
 			} else {
 				fmt.Println("Login event:", evt.Event)
