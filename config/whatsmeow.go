@@ -42,7 +42,13 @@ func eventHandler(evt interface{}) {
 				conversation := v.Message.GetConversation()
 				arrayConversation := strings.Split(conversation, " ")
 				if arrayConversation[0] == "#comp" {
-					_, err := utils.ConversationWithOpenAI(ctx, v, client, conversation)
+					_, err := utils.ConversationWithOpenAICompletion(ctx, v, client, conversation)
+					if err != nil {
+						fmt.Println("err", err)
+						return
+					}
+				} else if arrayConversation[0] == "#embed" {
+					_, err := utils.ConversationWithOpenAIEmbed(ctx, v, client, conversation)
 					if err != nil {
 						fmt.Println("err", err)
 						return
@@ -52,6 +58,7 @@ func eventHandler(evt interface{}) {
 		}
 	}
 }
+
 func NewInitializedWhatsMeow() (*whatsmeow.Client, error) {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:go_whatsapp.db?_foreign_keys=on", dbLog)
@@ -59,7 +66,7 @@ func NewInitializedWhatsMeow() (*whatsmeow.Client, error) {
 		return nil, err
 	}
 
-	// If you want multiple sessions, remember their JIDs and use .GetDevice(jid) or .GetAllDevices() instead.
+	// If want multiple sessions, remember their JIDs and use .GetDevice(jid) or .GetAllDevices() instead.
 	deviceStore, err := container.GetFirstDevice()
 	if err != nil {
 		return nil, err

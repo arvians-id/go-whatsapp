@@ -115,22 +115,41 @@ func StickerToImage(ctx context.Context, v *events.Message, client *whatsmeow.Cl
 	return response, nil
 }
 
-func ConversationWithOpenAI(ctx context.Context, v *events.Message, client *whatsmeow.Client, prompt string) (whatsmeow.SendResponse, error) {
-	conversation := "Cannot find your conversation"
-	if prompt != "undefined" {
-		apiKey := os.Getenv("API_KEY")
-		clientAI := gpt3.NewClient(apiKey)
-		resp, err := clientAI.Completion(ctx, gpt3.CompletionRequest{
-			Prompt:    []string{prompt},
-			MaxTokens: gpt3.IntPtr(30),
-			Stop:      []string{"."},
-			Echo:      true,
-		})
-		if err != nil {
-			return whatsmeow.SendResponse{}, err
-		}
-		conversation = resp.Choices[0].Text
+func ConversationWithOpenAICompletion(ctx context.Context, v *events.Message, client *whatsmeow.Client, prompt string) (whatsmeow.SendResponse, error) {
+	apiKey := os.Getenv("API_KEY")
+	clientAI := gpt3.NewClient(apiKey)
+	resp, err := clientAI.Completion(ctx, gpt3.CompletionRequest{
+		Prompt:    []string{prompt},
+		MaxTokens: gpt3.IntPtr(30),
+		Stop:      []string{"."},
+		Echo:      true,
+	})
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
 	}
+	conversation := resp.Choices[0].Text
+
+	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
+		Conversation: proto.String(conversation),
+	})
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+
+	return response, nil
+}
+
+func ConversationWithOpenAIEmbed(ctx context.Context, v *events.Message, client *whatsmeow.Client, prompt string) (whatsmeow.SendResponse, error) {
+	apiKey := os.Getenv("API_KEY")
+	clientAI := gpt3.NewClient(apiKey)
+	resp, err := clientAI.Embeddings(ctx, gpt3.EmbeddingsRequest{
+		Input: []string{"Your text string goes here"},
+		Model: "text-embedding-ada-002",
+	})
+	if err != nil {
+		return whatsmeow.SendResponse{}, err
+	}
+	conversation := resp.Object
 
 	response, err := client.SendMessage(ctx, v.Info.Sender, "", &waProto.Message{
 		Conversation: proto.String(conversation),
