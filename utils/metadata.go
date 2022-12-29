@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const rawFile = "worker/metadata/raw.exif"
+const rawFile = "assets/metadata/raw.exif"
 
 // Exif creates the exif metadata file and writes it to the image
 type Exif struct {

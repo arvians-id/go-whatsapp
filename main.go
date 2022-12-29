@@ -4,6 +4,7 @@ import (
 	"github.com/arvians-id/go-whatsapp/config"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"go.mau.fi/whatsmeow"
 	"log"
 	"os"
 	"os/signal"
@@ -16,8 +17,15 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	// Initialize database
+	db, err := config.NewInitializedSQLiteDatabase()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	// Setup WhatsApp
-	client, err := config.NewInitializedWhatsMeow()
+	var whatsMeowClient *whatsmeow.Client
+	client := config.NewInitializedWhatsMeow(whatsMeowClient, db)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -26,5 +34,5 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	client.Disconnect()
+	client.Client.Disconnect()
 }

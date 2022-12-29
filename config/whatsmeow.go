@@ -3,85 +3,38 @@ package config
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"strings"
-
-	"github.com/arvians-id/go-whatsapp/utils"
+	"github.com/arvians-id/go-whatsapp/handler"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"os"
 )
 
-var client *whatsmeow.Client
-
-func eventHandler(evt interface{}) {
-	ctx := context.Background()
-
-	switch v := evt.(type) {
-	case *events.Message:
-		if !v.Info.IsFromMe {
-			if v.Message.GetStickerMessage() != nil {
-				_, err := utils.StickerToImage(ctx, v, client)
-				if err != nil {
-					fmt.Println("err", err)
-					return
-				}
-			}
-			if v.Message.GetImageMessage() != nil {
-				_, err := utils.ImageToSticker(ctx, v, client)
-				if err != nil {
-					fmt.Println("err", err)
-					return
-				}
-				log.Println("=============================== Sticker Sent ========================================")
-			}
-			if v.Message.GetConversation() != "" {
-				conversation := v.Message.GetConversation()
-				arrayConversation := strings.Split(conversation, " ")
-				if arrayConversation[0] == "#comp" {
-					_, err := utils.ConversationWithOpenAICompletion(ctx, v, client, conversation)
-					if err != nil {
-						fmt.Println("err", err)
-						return
-					}
-				} else if arrayConversation[0] == "#embed" {
-					_, err := utils.ConversationWithOpenAIEmbed(ctx, v, client, conversation)
-					if err != nil {
-						fmt.Println("err", err)
-						return
-					}
-				}
-			}
-		}
-	}
-}
-
-func NewInitializedWhatsMeow() (*whatsmeow.Client, error) {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:go_whatsapp.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		return nil, err
+func NewInitializedWhatsMeow(client *whatsmeow.Client, db *sqlstore.Container) handler.WhatsMeowHandler {
+	whatsMeowHandler := handler.WhatsMeowHandler{
+		Client: client,
+		DB:     db,
 	}
 
 	// If want multiple sessions, remember their JIDs and use .GetDevice(jid) or .GetAllDevices() instead.
-	deviceStore, err := container.GetFirstDevice()
+	deviceStore, err := whatsMeowHandler.DB.GetFirstDevice()
 	if err != nil {
-		return nil, err
+		return handler.WhatsMeowHandler{}
 	}
 
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
-	client = whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(eventHandler)
+	whatsMeowHandler.Client = whatsmeow.NewClient(deviceStore, clientLog)
+	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.ImageToSticker)
+	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.StickerToImage)
+	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.ConversationWithOpenAICompletion)
 
-	if client.Store.ID == nil {
+	if whatsMeowHandler.Client.Store.ID == nil {
 		// No ID stored, new login
-		qrChan, _ := client.GetQRChannel(context.Background())
-		err = client.Connect()
+		qrChan, _ := whatsMeowHandler.Client.GetQRChannel(context.Background())
+		err = whatsMeowHandler.Client.Connect()
 		if err != nil {
-			return nil, err
+			return handler.WhatsMeowHandler{}
 		}
 
 		for evt := range qrChan {
@@ -93,11 +46,11 @@ func NewInitializedWhatsMeow() (*whatsmeow.Client, error) {
 			}
 		}
 	} else {
-		err = client.Connect()
+		err = whatsMeowHandler.Client.Connect()
 		if err != nil {
-			return nil, err
+			return handler.WhatsMeowHandler{}
 		}
 	}
 
-	return client, nil
+	return whatsMeowHandler
 }
