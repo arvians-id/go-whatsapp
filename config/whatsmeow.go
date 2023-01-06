@@ -3,12 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/arvians-id/go-whatsapp/handler"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
-	"os"
 )
 
 func NewInitializedWhatsMeow(client *whatsmeow.Client, db *sqlstore.Container) handler.WhatsMeowHandler {
@@ -28,6 +29,7 @@ func NewInitializedWhatsMeow(client *whatsmeow.Client, db *sqlstore.Container) h
 	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.ImageToSticker)
 	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.StickerToImage)
 	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.ConversationWithOpenAICompletion)
+	whatsMeowHandler.Client.AddEventHandler(whatsMeowHandler.RemoveBackground)
 
 	if whatsMeowHandler.Client.Store.ID == nil {
 		// No ID stored, new login

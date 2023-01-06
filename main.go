@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/arvians-id/go-whatsapp/config"
-	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
-	"go.mau.fi/whatsmeow"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/arvians-id/go-whatsapp/config"
+	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
+	"go.mau.fi/whatsmeow"
 )
 
 func main() {
